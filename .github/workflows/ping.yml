@@ -1,0 +1,45 @@
+name: Ping
+
+# Every 30 minutes, from GitHub's runners (off the VPS). GitHub may start a
+# scheduled run late under load; for "is the box still there?" that is fine.
+# This repo is PUBLIC on purpose: public-repo minutes are free, so the owner's
+# $0-capped private-repo quota can never block this check.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ping
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check platform health from outside
+        id: check
+        run: ./check.sh
+      # No state is kept: while the box is down this posts every run (a
+      # 30-minute reminder). Recovery is the on-box watcher's "recovered"
+      # message, or these posts stopping. The failed run also emails the owner,
+      # a second channel for when Slack itself is the problem.
+      - name: Alert Slack
+        if: ${{ failure() && steps.check.outcome == 'failure' }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          REASON: ${{ steps.check.outputs.reason }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [[ -z "$SLACK_WEBHOOK_URL" ]]; then
+            echo "::error::SLACK_WEBHOOK_URL secret is not set; no alert was sent"
+            exit 1
+          fi
+          payload="$(jq -n --arg reason "$REASON" --arg run "$RUN_URL" \
+            '{text: ":red_circle: Genesis unreachable from outside the VPS (\($reason)) <\($run)|run>"}')"
+          curl -sS --fail --max-time 15 -H 'Content-Type: application/json' -d "$payload" "$SLACK_WEBHOOK_URL"
