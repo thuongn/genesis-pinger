@@ -19,6 +19,12 @@ gh secret set SLACK_WEBHOOK_URL --repo thuongn/genesis-pinger   # paste the Slac
 gh workflow run ping.yml --repo thuongn/genesis-pinger           # first run, by hand
 ```
 
+Test the Slack alert end to end (posts one red message, and the run fails):
+
+```bash
+gh workflow run ping.yml --repo thuongn/genesis-pinger -f url=https://genesis-pinger-test.invalid/health
+```
+
 ## Run locally
 
 ```bash

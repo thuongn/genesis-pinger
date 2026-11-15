@@ -8,6 +8,11 @@ on:
   schedule:
     - cron: "*/30 * * * *"
   workflow_dispatch:
+    inputs:
+      url:
+        description: "URL to check instead of the default (point it at a bad URL to test the Slack alert)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -24,6 +29,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check platform health from outside
         id: check
+        env:
+          # Empty on scheduled runs, so check.sh falls back to its default URL.
+          PINGER_URL: ${{ inputs.url }}
         run: ./check.sh
       # No state is kept: while the box is down this posts every run (a
       # 30-minute reminder). Recovery is the on-box watcher's "recovered"
